@@ -33,16 +33,15 @@ COMPORT	*hCom1; //COM PORTの使用
 const char ID1 = 1;
 const char ID2 = 2;
 const char ID3 = 3;
-const float CURRENT1 = 2.0f;//mA
-const float CURRENT2 = 2.0f;
-const float CURRENT3 = 2.0f;
-const float OFFSET = 0.95;
+const float CURRENT1 = 3.0f;//mA
+const float CURRENT2 = 3.0f;
+const float CURRENT3 = 3.0f;
+const float OFFSET = 0.95f;
+const int GVS_PERIOD = 250.0f; //mA
+const float PROPORTION_OF_ENHANCE = 0.1f; //10%の周期は信号増強、90%は信号削減
 char POLE1;
 char POLE2;
 char POLE3;
-const int TIME_A = 5000;//ms
-const int TIME_B = 5000;//ms
-const int TIME_C = 5000;//ms
 
 LPCWSTR buf2;
 
@@ -73,16 +72,125 @@ void Init() {
 	POLE2 = 0;
 	POLE3 = 0;
 
-	currentScale1 = (CURRENT1 / 2.0f) * 4095 * OFFSET;
-	currentScale2 = (CURRENT2 / 2.0f) * 4095 * OFFSET;
-	currentScale3 = (CURRENT3 / 2.0f) * 4095 * OFFSET;
+	currentScale1 = (CURRENT1 / 3.0f) * 4095 * OFFSET;
+	currentScale2 = (CURRENT2 / 3.0f) * 4095 * OFFSET;
+	currentScale3 = (CURRENT3 / 3.0f) * 4095 * OFFSET;
 
-	currentUnit = (0.1f / 2.0f) * 4095 * OFFSET;
+	currentUnit = (0.1f / 3.0f) * 4095 * OFFSET;
 	Max = 4095 * OFFSET;
 
 
 	flag = true;
 }
+
+void FB_GVS_Input()
+{
+	if (_kbhit())
+	{
+		int ch = _getch();
+		std::cout << ch << "\n";
+		if (ch == 'Q') {
+		}
+		else if (ch == 8) {
+			dat1 += currentUnit;
+			dat3 += currentUnit;
+		}
+		else if (ch == 42) {
+			dat1 -= currentUnit;
+			dat3 -= currentUnit;
+		}
+		else if (ch == 49) {
+			dat1 = currentUnit * -10.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 50) {
+			dat1 = currentUnit * -20.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 51) {
+			dat1 = currentUnit * -30.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 52) {
+			dat1 = currentUnit * 10.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 53) {
+			dat1 = currentUnit * 20.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 54) {
+			dat1 = currentUnit * 30.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 48) {
+			dat1 = currentUnit * 0.0f;
+			dat3 = dat1;
+		}
+		else if (ch == 55) {
+			dat1 = currentUnit * 0.000001f;
+			dat3 = dat1;
+		}
+	}
+}
+
+void LR_GVS_Input()
+{
+	if (_kbhit())
+	{
+		int ch = _getch();
+		std::cout << ch << "\n";
+		if (ch == 'Q') {
+		}
+		else if (ch == 8) {
+			dat2 += currentUnit;
+		}
+		else if (ch == 42) {
+			dat2 -= currentUnit;;
+		}
+		else if (ch == 49) {
+			dat2 = currentUnit * -10.0f;
+		}
+		else if (ch == 50) {
+			dat2 = currentUnit * -20.0f;
+		}
+		else if (ch == 51) {
+			dat2 = currentUnit * -30.0f;
+		}
+		else if (ch == 52) {
+			dat2 = currentUnit * 10.0f;
+		}
+		else if (ch == 53) {
+			dat2 = currentUnit * 20.0f;
+		}
+		else if (ch == 54) {
+			dat2 = currentUnit * 30.0f;
+		}
+		else if (ch == 48) {
+			dat2 = currentUnit * 0.0f;
+		}
+		else if (ch == 55) {
+			dat2 = currentUnit * 0.000001f;
+		}
+	}
+}
+
+void BlueNavi_Linear(int time)
+{
+	float normalizedTime = float(time % GVS_PERIOD)/ GVS_PERIOD;
+	if (normalizedTime < PROPORTION_OF_ENHANCE)
+	{
+		dat1 = -(normalizedTime / PROPORTION_OF_ENHANCE) * currentUnit * 30;
+		dat3 = dat1;
+	}
+	else
+	{
+		dat1 = -(1 - normalizedTime)/(1 - PROPORTION_OF_ENHANCE) * currentUnit * 30;
+		dat3 = dat1;
+	}
+	//cout << normalizedTime << endl;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 CPDIg4		g_pdiDev;
@@ -688,14 +796,14 @@ void ParseG4NativeFrame( PBYTE pBuf, DWORD dwSize )
 								pSD->pos[0], pSD->pos[1], pSD->pos[2],
 								pSD->ori[0], pSD->ori[1], pSD->ori[2], pSD->ori[3] );
 
-						if (dat1 != 0) {
+						if (dat1 != 0 || dat2 != 0 || dat3 != 0) {
 
 							if (pSD->nSnsID == 1 && dataOfID0 != 0) {
 
 								// file pointer 
 								fstream fout;
 
-								string fileName = "hua_1120_gyakuchikaku_28";
+								string fileName = "myTest";
 								// opens an existing csv file or creates a new file.  
 								fout.open(fileName + ".csv", ios::out | ios::app);
 
@@ -734,55 +842,10 @@ void ParseG4NativeFrame( PBYTE pBuf, DWORD dwSize )
 						}
 
 						//GVS SETTING----------------------------------------------------
-						if (_kbhit()) {
-							int ch = _getch();
-							//std::cout << ch<<"\n";
-							if (ch == 'Q') {
-								break;
-							}
-							else if (ch == 8) {
-								dat1 += currentUnit;
-								//dat2 += currentUnit;
-								dat3 += currentUnit;
-							}
-							else if (ch == 42) {
-								dat1 -= currentUnit;
-								//dat2 -= currentUnit;
-								dat3 -= currentUnit;
-							}
-							else if (ch == 49) {
-								dat1 = currentUnit * -6.66f;
-								dat3 = currentUnit * -6.66f;
-							}
-							else if (ch == 50) {
-								dat1 = currentUnit * -13.33f;
-								dat3 = currentUnit * -13.33f;
-							}
-							else if (ch == 51) {
-								dat1 = currentUnit * -20.0f;
-								dat3 = currentUnit * -20.0f;
-							}
-							else if (ch == 52) {
-								dat1 = currentUnit * 6.66f;
-								dat3 = currentUnit * 6.66f;
-							}
-							else if (ch == 53) {
-								dat1 = currentUnit * 13.33f;
-								dat3 = currentUnit * 13.33f;
-							}
-							else if (ch == 54) {
-								dat1 = currentUnit * 20.0f;
-								dat3 = currentUnit * 20.0f;
-							}
-							else if (ch == 48) {
-								dat1 = currentUnit * 0.0f;
-								dat3 = currentUnit * 0.0f;
-							}
-							else if (ch == 55) {
-								dat1 = currentUnit * 0.000001f;
-								dat3 = currentUnit * 0.000001f;
-							}
-						}
+
+						FB_GVS_Input();
+						//LR_GVS_Input();
+						//BlueNavi_Linear(clock() - timeStart);
 
 						if (dat1 > Max) dat1 = Max;
 						if (dat2 > Max) dat2 = Max;
